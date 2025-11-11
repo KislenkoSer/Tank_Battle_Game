@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tank Battle - Telegram Game</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #000;
+            overflow: hidden;
+            touch-action: none;
+        }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        #game {
+            display: block;
+            margin: 0 auto;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            padding: 0 20px;
+        }
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            background: rgba(255,255,255,0.2);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            color: white;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: manipulation;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="game"></div>
+        <div class="controls">
+            <div class="control-btn" id="btn-left">⬅️</div>
+            <div class="control-btn" id="btn-up">⬆️</div>
+            <div class="control-btn" id="btn-down">⬇️</div>
+            <div class="control-btn" id="btn-right">➡️</div>
+            <div class="control-btn" id="btn-shoot">🔴</div>
+        </div>
+    </div>
+
+    <script>
+        // Инициализация Telegram Web App
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.enableClosingConfirmation();
+
+        class GameScene extends Phaser.Scene {
+            constructor() {
+                super({ key: 'GameScene' });
+            }
+
+            preload() {
+                this.createTankTexture('tank', 0x00ff00);
+                this.createTankTexture('enemy', 0xff0000);
+                this.createWallTexture('wall', 0x666666);
+                this.createWallTexture('steel', 0x8888ff);
+                this.createBulletTexture('bullet', 0xffff00);
+            }
+
+            createTankTexture(key, color) {
+                const graphics = this.add.graphics();
+                graphics.fillStyle(color);
+                graphics.fillRoundedRect(4, 4, 24, 24, 5);
+                graphics.fillStyle(0x333333);
+                graphics.fillRect(14, 0, 4, 12);
+                graphics.fillStyle(0x222222);
+                graphics.fillRect(2, 8, 28, 4);
+                graphics.fillRect(2, 20, 28, 4);
+                graphics.generateTexture(key, 32, 32);
+                graphics.destroy();
+            }
+
+            createWallTexture(key, color) {
+                const graphics = this.add.graphics();
+                graphics.fillStyle(color);
+                graphics.fillRect(0, 0, 32, 32);
+                graphics.fillStyle(0x000000, 0.3);
+                for (let x = 0; x < 32; x += 8) {
+                    for (let y = 0; y < 32; y += 8) {
+                        if ((x + y) % 16 === 0) {
+                            graphics.fillRect(x, y, 6, 6);
+                        }
+                    }
+                }
+                graphics.generateTexture(key, 32, 32);
+                graphics.destroy();
+            }
+
+            createBulletTexture(key, color) {
+                const graphics = this.add.graphics();
+                graphics.fillStyle(color);
+                graphics.fillCircle(4, 4, 3);
+                graphics.fillStyle(0xffffff, 0.8);
+                graphics.fillCircle(2, 2, 1);
+                graphics.generateTexture(key, 8, 8);
+                graphics.destroy();
+            }
+
+            create() {
+                // Адаптация под мобильный экран
+                const screenWidth = window.innerWidth;
+                const screenHeight = window.innerHeight - 120; // Учитываем кнопки управления
+                
+                this.score = 0;
+                this.totalEnemiesKilled = 0;
+                this.maxEnemies = 8; // Меньше врагов для мобильной версии
+                
+                this.cameras.main.setBackgroundColor(0x0a0a0a);
+                
+                this.walls = this.physics.add.staticGroup();
+                this.bullets = this.physics.add.group();
+                this.enemies = this.physics.add.group();
+                
+                this.createField();
+                this.createPlayer();
+                this.createEnemies();
+                this.setupMobileControls();
+                this.setupCollisions();
+                this.createUI();
+                this.setupEnemySpawning();
+            }
+
+            createField() {
+                // Меньшее поле для мобильных
+                const cols = 15;
+                const rows = 20;
+                const cellSize = 28;
+                
+                for (let x = 0; x < cols; x++) {
+                    this.walls.create(x * cellSize, 0, 'wall');
+                    this.walls.create(x * cellSize, (rows-1) * cellSize, 'wall');
+                }
+                for (let y = 1; y < rows-1; y++) {
+                    this.walls.create(0, y * cellSize, 'wall');
+                    this.walls.create((cols-1) * cellSize, y * cellSize, 'wall');
+                }
+                
+                const obstacles = [
+                    [4, 4, 'wall'], [5, 4, 'steel'], [6, 4, 'wall'],
+                    [9, 4, 'steel'], [10, 4, 'wall'], [11, 4, 'steel'],
+                    [4, 10, 'wall'], [4, 11, 'steel'], [4, 12, 'wall'],
+                    [11, 10, 'steel'], [11, 11, 'wall'], [11, 12, 'steel']
+                ];
+                
+                obstacles.forEach(coord => {
+                    this.walls.create(coord[0] * 28, coord[1] * 28, coord[2]);
+                });
+            }
+
+            createPlayer() {
+                this.player = this.physics.add.sprite(100, 500, 'tank');
+                this.player.setCollideWorldBounds(true);
+                this.player.health = 3;
+                this.player.direction = 'up';
+                this.player.type = 'player';
+                this.player.setTint(0x00ff00);
+            }
+
+            createEnemies() {
+                const spawnPoints = [
+                    {x: 300, y: 100}, {x: 250, y: 150}, {x: 350, y: 80}
+                ];
+                
+                for (let i = 0; i < 3; i++) {
+                    this.createEnemy(spawnPoints[i].x, spawnPoints[i].y);
+                }
+            }
+
+            createEnemy(x, y) {
+                const enemy = this.physics.add.sprite(x, y, 'enemy');
+                enemy.setCollideWorldBounds(true);
+                enemy.direction = 'down';
+                enemy.type = 'enemy';
+                enemy.lastDirectionChange = 0;
+                enemy.lastShotTime = 0;
+                
+                const directions = [
+                    { vx: 0, vy: 60 }, { vx: 0, vy: -60 },
+                    { vx: 60, vy: 0 }, { vx: -60, vy: 0 }
+                ];
+                const dir = Phaser.Utils.Array.GetRandom(directions);
+                enemy.setVelocity(dir.vx, dir.vy);
+                
+                this.enemies.add(enemy);
+                return enemy;
+            }
+
+            setupMobileControls() {
+                // Сенсорное управление
+                this.btnLeft = document.getElementById('btn-left');
+                this.btnRight = document.getElementById('btn-right');
+                this.btnUp = document.getElementById('btn-up');
+                this.btnDown = document.getElementById('btn-down');
+                this.btnShoot = document.getElementById('btn-shoot');
+                
+                this.setupButton(this.btnLeft, 'left');
+                this.setupButton(this.btnRight, 'right');
+                this.setupButton(this.btnUp, 'up');
+                this.setupButton(this.btnDown, 'down');
+                this.setupButton(this.btnShoot, 'shoot');
+            }
+
+            setupButton(button, action) {
+                button.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    this[`${action}Pressed`] = true;
+                });
+                
+                button.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    this[`${action}Pressed`] = false;
+                });
+                
+                // Для десктопной отладки
+                button.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    this[`${action}Pressed`] = true;
+                });
+                
+                button.addEventListener('mouseup', (e) => {
+                    e.preventDefault();
+                    this[`${action}Pressed`] = false;
+                });
+            }
+
+            setupCollisions() {
+                this.physics.add.collider(this.player, this.walls);
+                this.physics.add.collider(this.enemies, this.walls);
+                this.physics.add.collider(this.player, this.enemies);
+                this.physics.add.collider(this.enemies, this.enemies);
+                
+                this.physics.add.collider(this.bullets, this.walls, (bullet, wall) => {
+                    this.createExplosion(bullet.x, bullet.y, 0x888888);
+                    bullet.destroy();
+                });
+
+                this.physics.add.collider(this.bullets, this.bullets, (bullet1, bullet2) => {
+                    this.createExplosion(bullet1.x, bullet1.y, 0xffff00);
+                    bullet1.destroy();
+                    bullet2.destroy();
+                });
+            }
+
+            createExplosion(x, y, color) {
+                const graphics = this.add.graphics();
+                graphics.fillStyle(color);
+                graphics.fillCircle(x, y, 8);
+                this.time.delayedCall(200, () => graphics.destroy());
+            }
+
+            update(time) {
+                if (this.player.health <= 0) return;
+                
+                this.handleMobileInput(time);
+                this.updateEnemiesAI(time);
+                this.checkBulletHits();
+                this.checkTankCollisions();
+            }
+
+            handleMobileInput(time) {
+                this.player.setVelocity(0);
+                
+                if (this.leftPressed) {
+                    this.player.setVelocityX(-120);
+                    this.player.rotation = -1.57;
+                    this.player.direction = 'left';
+                } else if (this.rightPressed) {
+                    this.player.setVelocityX(120);
+                    this.player.rotation = 1.57;
+                    this.player.direction = 'right';
+                }
+                
+                if (this.upPressed) {
+                    this.player.setVelocityY(-120);
+                    this.player.rotation = 0;
+                    this.player.direction = 'up';
+                } else if (this.downPressed) {
+                    this.player.setVelocityY(120);
+                    this.player.rotation = 3.14;
+                    this.player.direction = 'down';
+                }
+                
+                if (this.shootPressed && time > this.lastFired) {
+                    this.createBullet(this.player, 0x00ff00);
+                    this.lastFired = time + 500;
+                }
+            }
+
+            // ... остальные методы остаются такими же как в предыдущей версии
+            // (updateEnemiesAI, checkBulletHits, checkTankCollisions, enemyDestroyed, playerHit, playerDestroyed, createBullet)
+
+            setupEnemySpawning() {
+                this.enemySpawnTimer = this.time.addEvent({
+                    delay: 5000,
+                    callback: this.spawnNewEnemy,
+                    callbackScope: this,
+                    loop: true
+                });
+            }
+
+            spawnNewEnemy() {
+                if (this.enemies.getLength() >= this.maxEnemies) return;
+                
+                const spawnPoints = [
+                    {x: 100, y: 50}, {x: 200, y: 50}, {x: 300, y: 50},
+                    {x: 50, y: 100}, {x: 350, y: 100}
+                ];
+                
+                const spawnPoint = Phaser.Utils.Array.GetRandom(spawnPoints);
+                this.createEnemy(spawnPoint.x, spawnPoint.y);
+            }
+
+            createUI() {
+                const style = {
+                    fontSize: '14px',
+                    fill: '#ffffff',
+                    fontStyle: 'bold',
+                    stroke: '#000000',
+                    strokeThickness: 2
+                };
+                
+                this.scoreText = this.add.text(150, 20, '🏆: 0', { 
+                    ...style,
+                    fill: '#ffff00'
+                });
+                
+                this.healthText = this.add.text(20, 20, '❤️: 3', { 
+                    ...style,
+                    fill: '#ff4444'
+                });
+            }
+
+            updateEnemiesAI(time) {
+                const enemies = this.enemies.getChildren();
+                
+                for (let enemy of enemies) {
+                    if (!enemy.active) continue;
+                    
+                    if (time > enemy.lastDirectionChange + Phaser.Math.Between(1500, 4000)) {
+                        const directions = [
+                            { vx: 0, vy: -60, rot: 0, dir: 'up' },
+                            { vx: 0, vy: 60, rot: 3.14, dir: 'down' },
+                            { vx: -60, vy: 0, rot: -1.57, dir: 'left' },
+                            { vx: 60, vy: 0, rot: 1.57, dir: 'right' }
+                        ];
+                        
+                        const newDir = Phaser.Utils.Array.GetRandom(directions);
+                        enemy.setVelocity(newDir.vx, newDir.vy);
+                        enemy.rotation = newDir.rot;
+                        enemy.direction = newDir.dir;
+                        enemy.lastDirectionChange = time;
+                    }
+                    
+                    if (time > enemy.lastShotTime + Phaser.Math.Between(1500, 4000)) {
+                        this.createBullet(enemy, 0xff0000);
+                        enemy.lastShotTime = time;
+                    }
+                }
+            }
+
+            checkBulletHits() {
+                const bullets = this.bullets.getChildren();
+                const enemies = this.enemies.getChildren();
+                
+                for (let bullet of bullets) {
+                    if (!bullet.active) continue;
+                    
+                    if (bullet.tintTopLeft === 0x00ff00) {
+                        for (let enemy of enemies) {
+                            if (!enemy.active) continue;
+                            
+                            const distance = Phaser.Math.Distance.Between(
+                                bullet.x, bullet.y, enemy.x, enemy.y
+                            );
+                            
+                            if (distance < 16) {
+                                this.createExplosion(enemy.x, enemy.y, 0xff0000);
+                                bullet.destroy();
+                                this.enemyDestroyed(enemy);
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (bullet.tintTopLeft === 0xff0000) {
+                        const distance = Phaser.Math.Distance.Between(
+                            bullet.x, bullet.y, this.player.x, this.player.y
+                        );
+                        
+                        if (distance < 16) {
+                            this.createExplosion(this.player.x, this.player.y, 0x00ff00);
+                            bullet.destroy();
+                            this.playerHit();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            checkTankCollisions() {
+                const enemies = this.enemies.getChildren();
+                
+                for (let enemy of enemies) {
+                    if (!enemy.active) continue;
+                    
+                    const distance = Phaser.Math.Distance.Between(
+                        this.player.x, this.player.y, enemy.x, enemy.y
+                    );
+                    
+                    if (distance < 28) {
+                        const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, enemy.x, enemy.y);
+                        this.player.x += Math.cos(angle) * 2;
+                        this.player.y += Math.sin(angle) * 2;
+                        enemy.x -= Math.cos(angle) * 2;
+                        enemy.y -= Math.sin(angle) * 2;
+                    }
+                }
+            }
+
+            enemyDestroyed(enemy) {
+                const points = 100;
+                this.score += points;
+                this.totalEnemiesKilled++;
+                
+                this.scoreText.setText('🏆: ' + this.score);
+                
+                enemy.destroy();
+            }
+
+            playerHit() {
+                this.player.health--;
+                this.healthText.setText('❤️: ' + this.player.health);
+                
+                this.tweens.add({
+                    targets: this.player,
+                    alpha: 0.5,
+                    duration: 100,
+                    yoyo: true,
+                    repeat: 2
+                });
+                
+                if (this.player.health <= 0) {
+                    this.playerDestroyed();
+                }
+            }
+
+            playerDestroyed() {
+                this.createExplosion(this.player.x, this.player.y, 0xff0000);
+                this.player.setTint(0x666666);
+                this.player.setVelocity(0, 0);
+                
+                this.add.text(150, 200, 'Конец игры!\nСчет: ' + this.score, { 
+                    fontSize: '24px',
+                    fill: '#ff4444',
+                    fontStyle: 'bold',
+                    stroke: '#000000',
+                    strokeThickness: 3,
+                    align: 'center'
+                }).setOrigin(0.5);
+                
+                this.physics.pause();
+            }
+
+            createBullet(shooter, color) {
+                const bullet = this.bullets.create(shooter.x, shooter.y, 'bullet');
+                bullet.setTint(color);
+                
+                const speed = 250;
+                let velocityX = 0;
+                let velocityY = 0;
+                
+                switch (shooter.direction) {
+                    case 'up': velocityY = -speed; break;
+                    case 'down': velocityY = speed; break;
+                    case 'left': velocityX = -speed; break;
+                    case 'right': velocityX = speed; break;
+                }
+                
+                bullet.setVelocity(velocityX, velocityY);
+                bullet.setCollideWorldBounds(true);
+                
+                this.time.delayedCall(2000, () => {
+                    if (bullet.active) bullet.destroy();
+                });
+            }
+        }
+
+        // Конфигурация для мобильных устройств
+        const config = {
+            type: Phaser.AUTO,
+            width: window.innerWidth,
+            height: window.innerHeight - 120,
+            parent: 'game',
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: { y: 0 },
+                    debug: false
+                }
+            },
+            scene: GameScene
+        };
+
+        const game = new Phaser.Game(config);
+
+        // Адаптация к изменению размера экрана
+        window.addEventListener('resize', () => {
+            game.scale.resize(window.innerWidth, window.innerHeight - 120);
+        });
+    </script>
+</body>
+</html>
