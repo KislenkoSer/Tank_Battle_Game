@@ -1,0 +1,41 @@
+import telebot
+from telebot import types
+
+TOKEN = '8382875650:AAEMy3lCr3czLj8H3MvqSPdCHEMCIR784h0'
+bot = telebot.TeleBot(TOKEN)
+
+@bot.message_handler(commands=['start'])
+def start(message):
+    markup = types.InlineKeyboardMarkup()
+    
+    # Замените на ваш реальный URL с GitHub Pages
+    game_url = "https://kislenkoser.github.io/Tank_Battle_Game/"
+    
+    play_btn = types.InlineKeyboardButton(
+        text='🎮 Играть в Tank Battle', 
+        url=game_url
+    )
+    markup.add(play_btn)
+    
+    bot.send_message(
+        message.chat.id,
+        "🚀 *Tank Battle*\n\nУправляйте танком и уничтожайте врагов!\n\n"
+        "Управление:\n"
+        "⬅️➡️⬆️⬇️ - движение\n"
+        "🔴 - стрельба\n\n"
+        "Нажмите кнопку ниже чтобы начать игру:",
+        parse_mode='Markdown',
+        reply_markup=markup
+    )
+
+@bot.message_handler(commands=['play'])
+def play_command(message):
+    game_url = "https://kislenkoser.github.io/Tank_Battle_Game/"
+    bot.send_message(
+        message.chat.id,
+        f"🎮 Играйте здесь: {game_url}"
+    )
+
+if __name__ == "__main__":
+    print("Бот запущен...")
+    bot.polling()
