@@ -165,7 +165,7 @@
             create() {
                 // Используем всю доступную область
                 const screenWidth = window.innerWidth;
-                const screenHeight = window.innerHeight - 170; // Еще больше места для кнопок
+                const screenHeight = window.innerHeight - 220; // Еще больше места для кнопок
                 
                 this.score = 0;
                 this.totalEnemiesKilled = 0;
@@ -590,7 +590,7 @@
         const config = {
             type: Phaser.AUTO,
             width: window.innerWidth,
-            height: window.innerHeight - 170, // Еще больше места для опущенных кнопок
+            height: window.innerHeight - 220, // Еще больше места для опущенных кнопок
             parent: 'game',
             physics: {
                 default: 'arcade',
@@ -606,7 +606,7 @@
 
         // Адаптация к изменению размера экрана
         window.addEventListener('resize', () => {
-            game.scale.resize(window.innerWidth, window.innerHeight - 170);
+            game.scale.resize(window.innerWidth, window.innerHeight - 220);
             game.scene.restart();
         });
     </script>
