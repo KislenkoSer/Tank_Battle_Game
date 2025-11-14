@@ -65,6 +65,7 @@
             grid-template-columns: repeat(3, 1fr);
             grid-template-rows: repeat(3, 1fr);
             gap: 8px;
+            margin-top: 20px; /* Сдвигаем всю панель управления вниз */
         }
         .movement-btn {
             width: 65px;
@@ -78,6 +79,7 @@
             background: rgba(255, 50, 50, 0.6);
             border-color: #ff4444;
             font-size: 32px;
+            margin-top: 35px; /* Сдвигаем кнопку стрельбы еще ниже */
         }
         .btn-shoot:active {
             background: rgba(255, 50, 50, 0.8);
@@ -163,7 +165,7 @@
             create() {
                 // Используем всю доступную область
                 const screenWidth = window.innerWidth;
-                const screenHeight = window.innerHeight - 150; // Больше места для увеличенных кнопок
+                const screenHeight = window.innerHeight - 170; // Еще больше места для кнопок
                 
                 this.score = 0;
                 this.totalEnemiesKilled = 0;
@@ -588,7 +590,7 @@
         const config = {
             type: Phaser.AUTO,
             width: window.innerWidth,
-            height: window.innerHeight - 150, // Больше места для увеличенных кнопок
+            height: window.innerHeight - 170, // Еще больше места для опущенных кнопок
             parent: 'game',
             physics: {
                 default: 'arcade',
@@ -604,7 +606,7 @@
 
         // Адаптация к изменению размера экрана
         window.addEventListener('resize', () => {
-            game.scale.resize(window.innerWidth, window.innerHeight - 150);
+            game.scale.resize(window.innerWidth, window.innerHeight - 170);
             game.scene.restart();
         });
     </script>
