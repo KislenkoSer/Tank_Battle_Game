@@ -146,13 +146,13 @@
             }
 
             create() {
-                // Вертикальная ориентация - меняем размеры
-                const screenWidth = Math.min(window.innerWidth, 400); // Уже для вертикального экрана
-                const screenHeight = window.innerHeight - 180; // Больше места для управления
+                // Используем всю доступную область
+                const screenWidth = window.innerWidth;
+                const screenHeight = window.innerHeight - 120; // Учитываем кнопки
                 
                 this.score = 0;
                 this.totalEnemiesKilled = 0;
-                this.maxEnemies = 5; // Еще меньше врагов для вертикального экрана
+                this.maxEnemies = 6;
                 this.lastFired = 0;
                 
                 this.cameras.main.setBackgroundColor(0x0a0a0a);
@@ -161,67 +161,83 @@
                 this.bullets = this.physics.add.group();
                 this.enemies = this.physics.add.group();
                 
-                this.createField(screenWidth, screenHeight);
-                this.createPlayer(screenWidth, screenHeight);
-                this.createEnemies(screenWidth, screenHeight);
+                // Сохраняем размеры для использования в других методах
+                this.gameWidth = screenWidth;
+                this.gameHeight = screenHeight;
+                
+                this.createField();
+                this.createPlayer();
+                this.createEnemies();
                 this.setupMobileControls();
                 this.setupCollisions();
                 this.createUI();
                 this.setupEnemySpawning();
             }
 
-            createField(width, height) {
-                // Вертикальное поле
-                const cols = Math.floor(width / 32);
-                const rows = Math.floor(height / 32);
+            createField() {
+                const cellSize = 32;
+                const cols = Math.floor(this.gameWidth / cellSize);
+                const rows = Math.floor(this.gameHeight / cellSize);
                 
-                // Границы
+                console.log(`Field size: ${cols}x${rows} cells`);
+                
+                // Границы поля - точно по краям экрана
                 for (let x = 0; x < cols; x++) {
-                    this.walls.create(x * 32, 0, 'wall');
-                    this.walls.create(x * 32, (rows-1) * 32, 'wall');
+                    this.walls.create(x * cellSize + cellSize/2, cellSize/2, 'wall');
+                    this.walls.create(x * cellSize + cellSize/2, this.gameHeight - cellSize/2, 'wall');
                 }
-                for (let y = 1; y < rows-1; y++) {
-                    this.walls.create(0, y * 32, 'wall');
-                    this.walls.create((cols-1) * 32, y * 32, 'wall');
+                for (let y = 0; y < rows; y++) {
+                    this.walls.create(cellSize/2, y * cellSize + cellSize/2, 'wall');
+                    this.walls.create(this.gameWidth - cellSize/2, y * cellSize + cellSize/2, 'wall');
                 }
                 
-                // Препятствия для вертикального поля
+                // Препятствия
                 const obstacles = [
-                    [2, 3, 'wall'], [3, 3, 'steel'], [4, 3, 'wall'],
-                    [cols-5, 3, 'steel'], [cols-4, 3, 'wall'], [cols-3, 3, 'steel'],
-                    [2, rows-4, 'wall'], [2, rows-5, 'steel'], [2, rows-6, 'wall'],
-                    [cols-3, rows-4, 'steel'], [cols-3, rows-5, 'wall'], [cols-3, rows-6, 'steel'],
+                    [3, 3, 'wall'], [4, 3, 'steel'], [5, 3, 'wall'],
+                    [cols-6, 3, 'steel'], [cols-5, 3, 'wall'], [cols-4, 3, 'steel'],
+                    [3, rows-4, 'wall'], [3, rows-5, 'steel'], [3, rows-6, 'wall'],
+                    [cols-4, rows-4, 'steel'], [cols-4, rows-5, 'wall'], [cols-4, rows-6, 'steel'],
                     [Math.floor(cols/2), Math.floor(rows/2), 'steel'],
                     [Math.floor(cols/2)-1, Math.floor(rows/2), 'wall'],
-                    [Math.floor(cols/2)+1, Math.floor(rows/2), 'wall']
+                    [Math.floor(cols/2)+1, Math.floor(rows/2), 'wall'],
+                    [Math.floor(cols/3), Math.floor(rows/3), 'wall'],
+                    [Math.floor(cols*2/3), Math.floor(rows*2/3), 'wall']
                 ];
                 
                 obstacles.forEach(coord => {
-                    if (coord[0] < cols && coord[1] < rows) {
-                        this.walls.create(coord[0] * 32, coord[1] * 32, coord[2]);
+                    if (coord[0] < cols-1 && coord[1] < rows-1) {
+                        this.walls.create(coord[0] * cellSize + cellSize/2, coord[1] * cellSize + cellSize/2, coord[2]);
                     }
                 });
             }
 
-            createPlayer(width, height) {
-                // Стартовая позиция внизу для вертикального экрана
-                this.player = this.physics.add.sprite(width / 2, height - 100, 'tank');
+            createPlayer() {
+                // Стартовая позиция внизу по центру
+                this.player = this.physics.add.sprite(
+                    this.gameWidth / 2, 
+                    this.gameHeight - 100, 
+                    'tank'
+                );
                 this.player.setCollideWorldBounds(true);
+                this.player.setBounce(0.3); // Добавляем отскок от стен
                 this.player.health = 3;
                 this.player.direction = 'up';
                 this.player.type = 'player';
                 this.player.setTint(0x00ff00);
+                
+                // Устанавливаем границы мира
+                this.physics.world.setBounds(0, 0, this.gameWidth, this.gameHeight);
             }
 
-            createEnemies(width, height) {
-                // Враги появляются вверху
+            createEnemies() {
                 const spawnPoints = [
-                    {x: width * 0.3, y: 80}, 
-                    {x: width * 0.7, y: 80},
-                    {x: width * 0.5, y: 50}
+                    {x: this.gameWidth * 0.3, y: 80}, 
+                    {x: this.gameWidth * 0.7, y: 80},
+                    {x: this.gameWidth * 0.2, y: 120},
+                    {x: this.gameWidth * 0.8, y: 120}
                 ];
                 
-                for (let i = 0; i < 2; i++) {
+                for (let i = 0; i < 3; i++) {
                     this.createEnemy(spawnPoints[i].x, spawnPoints[i].y);
                 }
             }
@@ -229,14 +245,15 @@
             createEnemy(x, y) {
                 const enemy = this.physics.add.sprite(x, y, 'enemy');
                 enemy.setCollideWorldBounds(true);
+                enemy.setBounce(0.3); // Отскок от стен
                 enemy.direction = 'down';
                 enemy.type = 'enemy';
                 enemy.lastDirectionChange = 0;
                 enemy.lastShotTime = 0;
                 
                 const directions = [
-                    { vx: 0, vy: 50 }, { vx: 0, vy: -50 },
-                    { vx: 50, vy: 0 }, { vx: -50, vy: 0 }
+                    { vx: 0, vy: 60 }, { vx: 0, vy: -60 },
+                    { vx: 60, vy: 0 }, { vx: -60, vy: 0 }
                 ];
                 const dir = Phaser.Utils.Array.GetRandom(directions);
                 enemy.setVelocity(dir.vx, dir.vy);
@@ -282,16 +299,19 @@
             }
 
             setupCollisions() {
+                // Коллизии с границами мира
                 this.physics.add.collider(this.player, this.walls);
                 this.physics.add.collider(this.enemies, this.walls);
                 this.physics.add.collider(this.player, this.enemies);
                 this.physics.add.collider(this.enemies, this.enemies);
                 
+                // Пули уничтожаются о стены
                 this.physics.add.collider(this.bullets, this.walls, (bullet, wall) => {
                     this.createExplosion(bullet.x, bullet.y, 0x888888);
                     bullet.destroy();
                 });
 
+                // Пули сталкиваются друг с другом
                 this.physics.add.collider(this.bullets, this.bullets, (bullet1, bullet2) => {
                     this.createExplosion(bullet1.x, bullet1.y, 0xffff00);
                     bullet1.destroy();
@@ -313,27 +333,37 @@
                 this.updateEnemiesAI(time);
                 this.checkBulletHits();
                 this.checkTankCollisions();
+                
+                // Проверяем, чтобы танки не выходили за границы
+                this.ensureInBounds(this.player);
+                this.enemies.getChildren().forEach(enemy => this.ensureInBounds(enemy));
+            }
+
+            ensureInBounds(tank) {
+                const padding = 16;
+                tank.x = Phaser.Math.Clamp(tank.x, padding, this.gameWidth - padding);
+                tank.y = Phaser.Math.Clamp(tank.y, padding, this.gameHeight - padding);
             }
 
             handleMobileInput(time) {
                 this.player.setVelocity(0);
                 
                 if (this.leftPressed) {
-                    this.player.setVelocityX(-120);
+                    this.player.setVelocityX(-150);
                     this.player.rotation = -1.57;
                     this.player.direction = 'left';
                 } else if (this.rightPressed) {
-                    this.player.setVelocityX(120);
+                    this.player.setVelocityX(150);
                     this.player.rotation = 1.57;
                     this.player.direction = 'right';
                 }
                 
                 if (this.upPressed) {
-                    this.player.setVelocityY(-120);
+                    this.player.setVelocityY(-150);
                     this.player.rotation = 0;
                     this.player.direction = 'up';
                 } else if (this.downPressed) {
-                    this.player.setVelocityY(120);
+                    this.player.setVelocityY(150);
                     this.player.rotation = 3.14;
                     this.player.direction = 'down';
                 }
@@ -346,7 +376,7 @@
 
             setupEnemySpawning() {
                 this.enemySpawnTimer = this.time.addEvent({
-                    delay: 6000,
+                    delay: 5000,
                     callback: this.spawnNewEnemy,
                     callbackScope: this,
                     loop: true
@@ -357,7 +387,11 @@
                 if (this.enemies.getLength() >= this.maxEnemies) return;
                 
                 const spawnPoints = [
-                    {x: 50, y: 50}, {x: 150, y: 50}, {x: 250, y: 50}, {x: 350, y: 50}
+                    {x: 50, y: 50}, 
+                    {x: this.gameWidth - 50, y: 50},
+                    {x: this.gameWidth / 2, y: 50},
+                    {x: 80, y: 80},
+                    {x: this.gameWidth - 80, y: 80}
                 ];
                 
                 const spawnPoint = Phaser.Utils.Array.GetRandom(spawnPoints);
@@ -366,7 +400,7 @@
 
             createUI() {
                 const style = {
-                    fontSize: '16px',
+                    fontSize: '18px',
                     fill: '#ffffff',
                     fontStyle: 'bold',
                     stroke: '#000000',
@@ -390,12 +424,13 @@
                 for (let enemy of enemies) {
                     if (!enemy.active) continue;
                     
-                    if (time > enemy.lastDirectionChange + Phaser.Math.Between(1500, 4000)) {
+                    // Меняем направление случайным образом
+                    if (time > enemy.lastDirectionChange + Phaser.Math.Between(2000, 5000)) {
                         const directions = [
-                            { vx: 0, vy: -60, rot: 0, dir: 'up' },
-                            { vx: 0, vy: 60, rot: 3.14, dir: 'down' },
-                            { vx: -60, vy: 0, rot: -1.57, dir: 'left' },
-                            { vx: 60, vy: 0, rot: 1.57, dir: 'right' }
+                            { vx: 0, vy: -80, rot: 0, dir: 'up' },
+                            { vx: 0, vy: 80, rot: 3.14, dir: 'down' },
+                            { vx: -80, vy: 0, rot: -1.57, dir: 'left' },
+                            { vx: 80, vy: 0, rot: 1.57, dir: 'right' }
                         ];
                         
                         const newDir = Phaser.Utils.Array.GetRandom(directions);
@@ -405,7 +440,8 @@
                         enemy.lastDirectionChange = time;
                     }
                     
-                    if (time > enemy.lastShotTime + Phaser.Math.Between(1500, 4000)) {
+                    // Стрельба
+                    if (time > enemy.lastShotTime + Phaser.Math.Between(2000, 4000)) {
                         this.createBullet(enemy, 0xff0000);
                         enemy.lastShotTime = time;
                     }
@@ -419,6 +455,7 @@
                 for (let bullet of bullets) {
                     if (!bullet.active) continue;
                     
+                    // Пули игрока попадают во врагов
                     if (bullet.tintTopLeft === 0x00ff00) {
                         for (let enemy of enemies) {
                             if (!enemy.active) continue;
@@ -427,7 +464,7 @@
                                 bullet.x, bullet.y, enemy.x, enemy.y
                             );
                             
-                            if (distance < 16) {
+                            if (distance < 20) {
                                 this.createExplosion(enemy.x, enemy.y, 0xff0000);
                                 bullet.destroy();
                                 this.enemyDestroyed(enemy);
@@ -436,16 +473,16 @@
                         }
                     }
                     
+                    // Пули врагов попадают в игрока
                     if (bullet.tintTopLeft === 0xff0000) {
                         const distance = Phaser.Math.Distance.Between(
                             bullet.x, bullet.y, this.player.x, this.player.y
                         );
                         
-                        if (distance < 16) {
+                        if (distance < 20) {
                             this.createExplosion(this.player.x, this.player.y, 0x00ff00);
                             bullet.destroy();
                             this.playerHit();
-                            break;
                         }
                     }
                 }
@@ -461,12 +498,13 @@
                         this.player.x, this.player.y, enemy.x, enemy.y
                     );
                     
-                    if (distance < 28) {
+                    // Отталкивание при столкновении танков
+                    if (distance < 30) {
                         const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, enemy.x, enemy.y);
-                        this.player.x += Math.cos(angle) * 2;
-                        this.player.y += Math.sin(angle) * 2;
-                        enemy.x -= Math.cos(angle) * 2;
-                        enemy.y -= Math.sin(angle) * 2;
+                        this.player.x += Math.cos(angle) * 3;
+                        this.player.y += Math.sin(angle) * 3;
+                        enemy.x -= Math.cos(angle) * 3;
+                        enemy.y -= Math.sin(angle) * 3;
                     }
                 }
             }
@@ -485,6 +523,7 @@
                 this.player.health--;
                 this.healthText.setText('❤️: ' + this.player.health);
                 
+                // Мигание при получении урона
                 this.tweens.add({
                     targets: this.player,
                     alpha: 0.5,
@@ -503,13 +542,13 @@
                 this.player.setTint(0x666666);
                 this.player.setVelocity(0, 0);
                 
-                this.add.text(this.cameras.main.centerX, this.cameras.main.centerY, 
+                this.add.text(this.gameWidth / 2, this.gameHeight / 2, 
                     'Конец игры!\nСчет: ' + this.score, { 
-                    fontSize: '24px',
+                    fontSize: '28px',
                     fill: '#ff4444',
                     fontStyle: 'bold',
                     stroke: '#000000',
-                    strokeThickness: 3,
+                    strokeThickness: 4,
                     align: 'center'
                 }).setOrigin(0.5);
                 
@@ -520,7 +559,7 @@
                 const bullet = this.bullets.create(shooter.x, shooter.y, 'bullet');
                 bullet.setTint(color);
                 
-                const speed = 250;
+                const speed = 300;
                 let velocityX = 0;
                 let velocityY = 0;
                 
@@ -534,17 +573,18 @@
                 bullet.setVelocity(velocityX, velocityY);
                 bullet.setCollideWorldBounds(true);
                 
+                // Автоуничтожение пуль через 2 секунды
                 this.time.delayedCall(2000, () => {
                     if (bullet.active) bullet.destroy();
                 });
             }
         }
 
-        // Вертикальная конфигурация
+        // Конфигурация игры
         const config = {
             type: Phaser.AUTO,
-            width: Math.min(window.innerWidth, 400), // Ограничиваем ширину
-            height: window.innerHeight - 180, // Больше места для кнопок
+            width: window.innerWidth,
+            height: window.innerHeight - 120,
             parent: 'game',
             physics: {
                 default: 'arcade',
@@ -560,9 +600,10 @@
 
         // Адаптация к изменению размера экрана
         window.addEventListener('resize', () => {
-            game.scale.resize(Math.min(window.innerWidth, 400), window.innerHeight - 180);
+            game.scale.resize(window.innerWidth, window.innerHeight - 120);
+            // Перезапускаем сцену при изменении размера
+            game.scene.restart();
         });
     </script>
 </body>
 </html>
-
