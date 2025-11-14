@@ -28,45 +28,60 @@
         }
         .controls {
             position: absolute;
-            bottom: 10px;
+            bottom: 15px;
             width: 100%;
             display: flex;
             justify-content: space-between;
-            padding: 0 10px;
+            padding: 0 15px;
         }
         .left-controls, .right-controls {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 15px;
         }
         .control-btn {
-            width: 50px;
-            height: 50px;
-            background: rgba(255,255,255,0.3);
-            border: 2px solid #fff;
+            width: 70px;
+            height: 70px;
+            background: rgba(255,255,255,0.4);
+            border: 3px solid #fff;
             border-radius: 50%;
             color: white;
-            font-size: 20px;
+            font-size: 28px;
             display: flex;
             align-items: center;
             justify-content: center;
             touch-action: manipulation;
             user-select: none;
+            transition: all 0.1s ease;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        .control-btn:active {
+            background: rgba(255,255,255,0.6);
+            transform: scale(0.95);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
         .movement-controls {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             grid-template-rows: repeat(3, 1fr);
-            gap: 5px;
+            gap: 8px;
         }
         .movement-btn {
-            width: 45px;
-            height: 45px;
+            width: 65px;
+            height: 65px;
         }
         .btn-up { grid-column: 2; grid-row: 1; }
         .btn-left { grid-column: 1; grid-row: 2; }
         .btn-down { grid-column: 2; grid-row: 3; }
         .btn-right { grid-column: 3; grid-row: 2; }
+        .btn-shoot {
+            background: rgba(255, 50, 50, 0.6);
+            border-color: #ff4444;
+            font-size: 32px;
+        }
+        .btn-shoot:active {
+            background: rgba(255, 50, 50, 0.8);
+        }
     </style>
 </head>
 <body>
@@ -82,7 +97,7 @@
                 </div>
             </div>
             <div class="right-controls">
-                <div class="control-btn" id="btn-shoot">🔴</div>
+                <div class="control-btn btn-shoot" id="btn-shoot">🔴</div>
             </div>
         </div>
     </div>
@@ -148,7 +163,7 @@
             create() {
                 // Используем всю доступную область
                 const screenWidth = window.innerWidth;
-                const screenHeight = window.innerHeight - 120; // Учитываем кнопки
+                const screenHeight = window.innerHeight - 150; // Больше места для увеличенных кнопок
                 
                 this.score = 0;
                 this.totalEnemiesKilled = 0;
@@ -219,7 +234,7 @@
                     'tank'
                 );
                 this.player.setCollideWorldBounds(true);
-                this.player.setBounce(0.3); // Добавляем отскок от стен
+                this.player.setBounce(0.3);
                 this.player.health = 3;
                 this.player.direction = 'up';
                 this.player.type = 'player';
@@ -245,7 +260,7 @@
             createEnemy(x, y) {
                 const enemy = this.physics.add.sprite(x, y, 'enemy');
                 enemy.setCollideWorldBounds(true);
-                enemy.setBounce(0.3); // Отскок от стен
+                enemy.setBounce(0.3);
                 enemy.direction = 'down';
                 enemy.type = 'enemy';
                 enemy.lastDirectionChange = 0;
@@ -299,19 +314,16 @@
             }
 
             setupCollisions() {
-                // Коллизии с границами мира
                 this.physics.add.collider(this.player, this.walls);
                 this.physics.add.collider(this.enemies, this.walls);
                 this.physics.add.collider(this.player, this.enemies);
                 this.physics.add.collider(this.enemies, this.enemies);
                 
-                // Пули уничтожаются о стены
                 this.physics.add.collider(this.bullets, this.walls, (bullet, wall) => {
                     this.createExplosion(bullet.x, bullet.y, 0x888888);
                     bullet.destroy();
                 });
 
-                // Пули сталкиваются друг с другом
                 this.physics.add.collider(this.bullets, this.bullets, (bullet1, bullet2) => {
                     this.createExplosion(bullet1.x, bullet1.y, 0xffff00);
                     bullet1.destroy();
@@ -334,7 +346,6 @@
                 this.checkBulletHits();
                 this.checkTankCollisions();
                 
-                // Проверяем, чтобы танки не выходили за границы
                 this.ensureInBounds(this.player);
                 this.enemies.getChildren().forEach(enemy => this.ensureInBounds(enemy));
             }
@@ -400,19 +411,19 @@
 
             createUI() {
                 const style = {
-                    fontSize: '18px',
+                    fontSize: '20px',
                     fill: '#ffffff',
                     fontStyle: 'bold',
                     stroke: '#000000',
-                    strokeThickness: 3
+                    strokeThickness: 4
                 };
                 
-                this.scoreText = this.add.text(100, 20, '🏆: 0', { 
+                this.scoreText = this.add.text(100, 25, '🏆: 0', { 
                     ...style,
                     fill: '#ffff00'
                 });
                 
-                this.healthText = this.add.text(20, 20, '❤️: 3', { 
+                this.healthText = this.add.text(25, 25, '❤️: 3', { 
                     ...style,
                     fill: '#ff4444'
                 });
@@ -424,7 +435,6 @@
                 for (let enemy of enemies) {
                     if (!enemy.active) continue;
                     
-                    // Меняем направление случайным образом
                     if (time > enemy.lastDirectionChange + Phaser.Math.Between(2000, 5000)) {
                         const directions = [
                             { vx: 0, vy: -80, rot: 0, dir: 'up' },
@@ -440,7 +450,6 @@
                         enemy.lastDirectionChange = time;
                     }
                     
-                    // Стрельба
                     if (time > enemy.lastShotTime + Phaser.Math.Between(2000, 4000)) {
                         this.createBullet(enemy, 0xff0000);
                         enemy.lastShotTime = time;
@@ -455,7 +464,6 @@
                 for (let bullet of bullets) {
                     if (!bullet.active) continue;
                     
-                    // Пули игрока попадают во врагов
                     if (bullet.tintTopLeft === 0x00ff00) {
                         for (let enemy of enemies) {
                             if (!enemy.active) continue;
@@ -473,7 +481,6 @@
                         }
                     }
                     
-                    // Пули врагов попадают в игрока
                     if (bullet.tintTopLeft === 0xff0000) {
                         const distance = Phaser.Math.Distance.Between(
                             bullet.x, bullet.y, this.player.x, this.player.y
@@ -498,7 +505,6 @@
                         this.player.x, this.player.y, enemy.x, enemy.y
                     );
                     
-                    // Отталкивание при столкновении танков
                     if (distance < 30) {
                         const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, enemy.x, enemy.y);
                         this.player.x += Math.cos(angle) * 3;
@@ -523,7 +529,6 @@
                 this.player.health--;
                 this.healthText.setText('❤️: ' + this.player.health);
                 
-                // Мигание при получении урона
                 this.tweens.add({
                     targets: this.player,
                     alpha: 0.5,
@@ -573,7 +578,6 @@
                 bullet.setVelocity(velocityX, velocityY);
                 bullet.setCollideWorldBounds(true);
                 
-                // Автоуничтожение пуль через 2 секунды
                 this.time.delayedCall(2000, () => {
                     if (bullet.active) bullet.destroy();
                 });
@@ -584,7 +588,7 @@
         const config = {
             type: Phaser.AUTO,
             width: window.innerWidth,
-            height: window.innerHeight - 120,
+            height: window.innerHeight - 150, // Больше места для увеличенных кнопок
             parent: 'game',
             physics: {
                 default: 'arcade',
@@ -600,8 +604,7 @@
 
         // Адаптация к изменению размера экрана
         window.addEventListener('resize', () => {
-            game.scale.resize(window.innerWidth, window.innerHeight - 120);
-            // Перезапускаем сцену при изменении размера
+            game.scale.resize(window.innerWidth, window.innerHeight - 150);
             game.scene.restart();
         });
     </script>
